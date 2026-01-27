@@ -220,6 +220,8 @@ defmodule Jennie do
 
   # Renderer implementation
   defp render_tokens(tokens, context, partials, delimiters) do
+    IO.inspect(tokens)
+
     tokens
     |> Enum.map(&render_token(&1, context, partials, delimiters))
     |> Enum.join()
