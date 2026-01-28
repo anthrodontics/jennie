@@ -23,3 +23,5 @@ jennie-*.tar
 /tmp/
 
 .DS_Store
+
+*.beam
