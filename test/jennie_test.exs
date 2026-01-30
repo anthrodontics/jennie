@@ -131,7 +131,7 @@ defmodule JennieTest do
     end
 
     test "Implicit Iterators - Integers should interpolate seamlessly." do
-      assert Jennie.render("{{.}} miles an hour!", 85)
+      assert Jennie.render("{{.}} miles an hour!", 85) == "85 miles an hour!"
     end
 
     test "Interpolation should not alter surrounding whitespace." do
@@ -190,13 +190,13 @@ defmodule JennieTest do
       assert Jennie.render(template, data) == expected
     end
 
-    #   test "Variable test - Non-false sections have their value at the top of context" do
-    #     data = %{"foo" => "bar"}
-    #     template = "{{#foo}}{{.}} is {{foo}}{{/foo}}"
-    #     expected = "bar is bar"
+    test "Variable test - Non-false sections have their value at the top of context" do
+      data = %{"foo" => "bar"}
+      template = "{{#foo}}{{.}} is {{foo}}{{/foo}}"
+      expected = "bar is bar"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
     #   test "List Contexts - All elements on the context stack should be accessible within lists" do
     #     data = %{
@@ -224,56 +224,57 @@ defmodule JennieTest do
     #     assert Jennie.render(template, data) == expected
     #   end
 
-    #   test "Deeply Nested Contexts - All elements on the context stack should be accessible" do
-    #     data = %{
-    #       "a" => %{"one" => 1},
-    #       "b" => %{"two" => 2},
-    #       "c" => %{
-    #         "three" => 3,
-    #         "d" => %{"four" => 4, "five" => 5}
-    #       }
-    #     }
+    test "Deeply Nested Contexts - All elements on the context stack should be accessible" do
+      data = %{
+        "a" => %{"one" => 1},
+        "b" => %{"two" => 2},
+        "c" => %{
+          "three" => 3,
+          "d" => %{"four" => 4, "five" => 5}
+        }
+      }
 
-    #     template = """
-    #     {{#a}}
-    #     {{one}}
-    #     {{#b}}
-    #     {{one}}{{two}}{{one}}
-    #     {{#c}}
-    #     {{one}}{{two}}{{three}}{{two}}{{one}}
-    #     {{#d}}
-    #     {{one}}{{two}}{{three}}{{four}}{{three}}{{two}}{{one}}
-    #     {{#five}}
-    #     {{one}}{{two}}{{three}}{{four}}{{five}}{{four}}{{three}}{{two}}{{one}}
-    #     {{one}}{{two}}{{three}}{{four}}{{.}}6{{.}}{{four}}{{three}}{{two}}{{one}}
-    #     {{one}}{{two}}{{three}}{{four}}{{five}}{{four}}{{three}}{{two}}{{one}}
-    #     {{/five}}
-    #     {{one}}{{two}}{{three}}{{four}}{{three}}{{two}}{{one}}
-    #     {{/d}}
-    #     {{one}}{{two}}{{three}}{{two}}{{one}}
-    #     {{/c}}
-    #     {{one}}{{two}}{{one}}
-    #     {{/b}}
-    #     {{one}}
-    #     {{/a}}
-    #     """
+      template = """
+      {{#a}}
+      {{one}}
+      {{#b}}
+      {{one}}{{two}}{{one}}
+      {{#c}}
+      {{one}}{{two}}{{three}}{{two}}{{one}}
+      {{#d}}
+      {{one}}{{two}}{{three}}{{four}}{{three}}{{two}}{{one}}
+      {{#five}}
+      {{one}}{{two}}{{three}}{{four}}{{five}}{{four}}{{three}}{{two}}{{one}}
+      {{one}}{{two}}{{three}}{{four}}{{.}}6{{.}}{{four}}{{three}}{{two}}{{one}}
+      {{one}}{{two}}{{three}}{{four}}{{five}}{{four}}{{three}}{{two}}{{one}}
+      {{/five}}
+      {{one}}{{two}}{{three}}{{four}}{{three}}{{two}}{{one}}
+      {{/d}}
+      {{one}}{{two}}{{three}}{{two}}{{one}}
+      {{/c}}
+      {{one}}{{two}}{{one}}
+      {{/b}}
+      {{one}}
+      {{/a}}
+      """
 
-    #     expected = """
-    #     1
-    #     121
-    #     12321
-    #     1234321
-    #     123454321
-    #     12345654321
-    #     123454321
-    #     1234321
-    #     12321
-    #     121
-    #     1
-    #     """
+      expected = """
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      1
+      121
+      12321
+      1234321
+      123454321
+      12345654321
+      123454321
+      1234321
+      12321
+      121
+      1
+      """
+
+      assert Jennie.render(template, data) == expected
+    end
 
     #   test "List - Lists should be iterated; list items should visit the context stack" do
     #     data = %{"list" => [%{"item" => 1}, %{"item" => 2}, %{"item" => 3}]}
@@ -291,43 +292,44 @@ defmodule JennieTest do
     #     assert Jennie.render(template, data) == expected
     #   end
 
-    #   test "Doubled - Multiple sections per template should be permitted" do
-    #     data = %{"bool" => true, "two" => "second"}
+    test "Doubled - Multiple sections per template should be permitted" do
+      data = %{"bool" => true, "two" => "second"}
 
-    #     template = """
-    #     {{#bool}}
-    #     * first
-    #     {{/bool}}
-    #     * {{two}}
-    #     {{#bool}}
-    #     * third
-    #     {{/bool}}
-    #     """
+      template = """
+      {{#bool}}
+      * first
+      {{/bool}}
+      * {{two}}
+      {{#bool}}
+      * third
+      {{/bool}}
+      """
 
-    #     expected = """
-    #     * first
-    #     * second
-    #     * third
-    #     """
+      expected = """
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      * first
+      * second
+      * third
+      """
 
-    #   test "Nested (Truthy) - Nested truthy sections should have their contents rendered" do
-    #     data = %{"bool" => true}
-    #     template = "| A {{#bool}}B {{#bool}}C{{/bool}} D{{/bool}} E |"
-    #     expected = "| A B C D E |"
+      assert Jennie.render(template, data) == expected
+    end
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+    test "Nested (Truthy) - Nested truthy sections should have their contents rendered" do
+      data = %{"bool" => true}
+      template = "| A {{#bool}}B {{#bool}}C{{/bool}} D{{/bool}} E |"
+      expected = "| A B C D E |"
 
-    #   test "Nested (Falsey) - Nested falsey sections should be omitted" do
-    #     data = %{"bool" => false}
-    #     template = "| A {{#bool}}B {{#bool}}C{{/bool}} D{{/bool}} E |"
-    #     expected = "| A  E |"
+      assert Jennie.render(template, data) == expected
+    end
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+    test "Nested (Falsey) - Nested falsey sections should be omitted" do
+      data = %{"bool" => false}
+      template = "| A {{#bool}}B {{#bool}}C{{/bool}} D{{/bool}} E |"
+      expected = "| A  E |"
+
+      assert Jennie.render(template, data) == expected
+    end
 
     test "Context Misses - Failed context lookups should be considered falsey" do
       data = %{}
@@ -377,100 +379,92 @@ defmodule JennieTest do
     #     assert Jennie.render(template, data) == expected
     #   end
 
-    #   test "Dotted Names - Truthy - Dotted names should be valid for Section tags" do
-    #     data = %{"a" => %{"b" => %{"c" => true}}}
-    #     template = "{{#a.b.c}}Here{{/a.b.c}}" == "Here"
-    #     expected = "Here" == "Here"
+    test "Dotted Names - Truthy - Dotted names should be valid for Section tags" do
+      data = %{"a" => %{"b" => %{"c" => true}}}
+      template = "{{#a.b.c}}Here{{/a.b.c}}"
+      expected = "Here"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Dotted Names - Falsey - Dotted names should be valid for Section tags" do
-    #     data = %{"a" => %{"b" => %{"c" => false}}}
-    #     template = "{{#a.b.c}}Here{{/a.b.c}}" == ""
-    #     expected = "" == ""
+    test "Dotted Names - Falsey - Dotted names should be valid for Section tags" do
+      data = %{"a" => %{"b" => %{"c" => false}}}
+      template = "{{#a.b.c}}Here{{/a.b.c}}"
+      expected = ""
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Dotted Names - Broken Chains - Dotted names that cannot be resolved should be considered falsey" do
-    #     data = %{"a" => %{}}
-    #     template = "{{#a.b.c}}Here{{/a.b.c}}" == ""
-    #     expected = "" == ""
+    test "Dotted Names - Broken Chains - Dotted names that cannot be resolved should be considered falsey" do
+      data = %{"a" => %{}}
+      template = "{{#a.b.c}}Here{{/a.b.c}}"
+      expected = ""
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Surrounding Whitespace - Sections should not alter surrounding whitespace" do
-    #     data = %{"boolean" => true}
-    #     template = " | {{#boolean}}\t|\t{{/boolean}} | \n"
-    #     expected = " | \t|\t | \n"
+    test "Surrounding Whitespace - Sections should not alter surrounding whitespace" do
+      data = %{"boolean" => true}
+      template = " | {{#boolean}}\t|\t{{/boolean}} | \n"
+      expected = " | \t|\t | \n"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Internal Whitespace - Sections should not alter internal whitespace" do
-    #     data = %{"boolean" => true}
-    #     template = " | {{#boolean}} {{! Important Whitespace }}\n {{/boolean}} | \n"
-    #     expected = " |  \n  | \n"
+    test "Indented Inline Sections - Single-line sections should not alter surrounding whitespace" do
+      data = %{"boolean" => true}
+      template = " {{#boolean}}YES{{/boolean}}\n {{#boolean}}GOOD{{/boolean}}\n"
+      expected = " YES\n GOOD\n"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Indented Inline Sections - Single-line sections should not alter surrounding whitespace" do
-    #     data = %{"boolean" => true}
-    #     template = " {{#boolean}}YES{{/boolean}}\n {{#boolean}}GOOD{{/boolean}}\n"
-    #     expected = " YES\n GOOD\n"
+    test "Standalone Lines - Standalone lines should be removed from the template" do
+      data = %{"boolean" => true}
+      template = "| This Is\n{{#boolean}}\n|\n{{/boolean}}\n| A Line\n"
+      expected = "| This Is\n|\n| A Line\n"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Standalone Lines - Standalone lines should be removed from the template" do
-    #     data = %{"boolean" => true}
-    #     template = "| This Is\n{{#boolean}}\n|\n{{/boolean}}\n| A Line\n"
-    #     expected = "| This Is\n|\n| A Line\n"
+    test "Indented Standalone Lines - Indented standalone lines should be removed from the template" do
+      data = %{"boolean" => true}
+      template = "| This Is\n  {{#boolean}}\n|\n  {{/boolean}}\n| A Line\n"
+      expected = "| This Is\n|\n| A Line\n"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Indented Standalone Lines - Indented standalone lines should be removed from the template" do
-    #     data = %{"boolean" => true}
-    #     template = "| This Is\n  {{#boolean}}\n|\n  {{/boolean}}\n| A Line\n"
-    #     expected = "| This Is\n|\n| A Line\n"
+    test "Standalone Line Endings - \\r\\n should be considered a newline for standalone tags" do
+      data = %{"boolean" => true}
+      template = "\n\n{{#boolean}}\r\n{{/boolean}}\n\n"
+      expected = "\n\n"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Standalone Line Endings - \\r\\n should be considered a newline for standalone tags" do
-    #     data = %{"boolean" => true}
-    #     template = "\r\n{{#boolean}}\r\n{{/boolean}}\r\n"
-    #     expected = "\r\n"
+    test "Standalone Without Previous Line - Standalone tags should not require a newline to precede them" do
+      data = %{"boolean" => true}
+      template = "  {{#boolean}}\n{{/boolean}}\n/"
+      expected = "/"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Standalone Without Previous Line - Standalone tags should not require a newline to precede them" do
-    #     data = %{"boolean" => true}
-    #     template = "  {{#boolean}}\n{{/boolean}}\n/"
-    #     expected = "#\n/"
+    test "Standalone Without Newline - Standalone tags should not require a newline to follow them" do
+      data = %{"boolean" => true}
+      template = "{{#boolean}}\n/\n  {{/boolean}}"
+      expected = "\n/"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Standalone Without Newline - Standalone tags should not require a newline to follow them" do
-    #     data = %{"boolean" => true}
-    #     template = "{{#boolean}}\n/\n  {{/boolean}}"
-    #     expected = "#\n/\n"
+    test "Padding - Superfluous in-tag whitespace should be ignored" do
+      data = %{"boolean" => true}
+      template = "|{{# boolean }}={{/ boolean }}|"
+      expected = "|=|"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
-
-    #   test "Padding - Superfluous in-tag whitespace should be ignored" do
-    #     data = %{"boolean" => true}
-    #     template = "|{{# boolean }}={{/ boolean }}|"
-    #     expected = "|=|"
-
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
   end
 end

@@ -3,52 +3,68 @@ defmodule Jennie.Engine do
   Engine that actions on Jennie tokens
   """
 
-  defstruct ~w(binary vars non_null_context)a
+  defstruct ~w(binary dynamic null_context_stack)a
 
   def init(_opts) do
     %__MODULE__{
       binary: [],
-      vars: [],
-      non_null_context: true
+      dynamic: [],
+      null_context_stack: []
     }
   end
 
-  def reset_context(state), do: %{state | non_null_context: true}
+  def pop_context(%{null_context_stack: [_head | tail]} = state),
+    do: %{state | null_context_stack: tail}
+
+  def insert_into_context(%{null_context_stack: stack} = state, item),
+    do: %{state | null_context_stack: [validate_context(item) | stack]}
+
+  defp context?([pop | _rest]), do: pop
+  defp context?([]), do: true
+
+  defp validate_context(item) do
+    if item in [%{}, false, nil, [], ""], do: false, else: true
+  end
 
   def handle_text(state, text) do
     check_state!(state)
-    %{binary: binary, non_null_context: context?} = state
-    if context?, do: %{state | binary: [text | binary]}, else: state
+    %{binary: binary, null_context_stack: stack} = state
+    if context?(stack), do: %{state | binary: [text | binary]}, else: state
   end
 
-  def handle_tag(state, {line, column}, expr, %{assigns: assigns, scope: scope}) do
+  def handle_tag(state, expr, %{assigns: assigns, scope: scope}) do
     check_state!(state)
-    %{binary: binary} = state
+    %{binary: binary, dynamic: dynamic} = state
 
     eval = handle_assigns(assigns, scope, expr)
 
-    if is_map(eval) do
-      expr = :erlang.list_to_binary(expr)
-
-      raise Jennie.SyntaxError,
-        message: "Incomplete expansion of tag `#{expr}`.",
-        line: line,
-        column: column
+    if is_list(eval) or is_map(eval) do
+      %{state | dynamic: [eval | dynamic]}
+    else
+      %{state | binary: [to_charlist(eval) | binary]}
     end
-
-    %{state | binary: [to_charlist(eval) | binary]}
   end
 
-  def handle_context(state, {_, _}, expr, %{assigns: assigns, scope: scope}) do
+  def handle_context(state, expr, %{assigns: assigns, scope: scope}) do
     check_state!(state)
 
     eval_context = handle_assigns(assigns, scope, expr)
 
-    %{state | non_null_context: eval_context}
+    insert_into_context(state, eval_context)
   end
 
-  defp handle_assigns(assigns, scope, expr),
-    do: get_in(assigns, scope ++ expr) || get_in(assigns, expr)
+  defp handle_assigns(%{"default" => data}, _, ["."]), do: data
+
+  defp handle_assigns(assigns, [head | _rest], ["."]) do
+    Access.get(assigns, head)
+  end
+
+  defp handle_assigns(assigns, [head | _], [expr | _]) when head == expr,
+    do: Access.get(assigns, expr)
+
+  defp handle_assigns(assigns, scope, expr) do
+    get_in(assigns, scope ++ expr) || get_in(assigns, expr)
+  end
 
   def handle_body(state) do
     check_state!(state)

@@ -36,9 +36,11 @@ defmodule Jennie.TokeniserTest do
                {:ok,
                 [
                   {:tag, 1, 1, ~c"#", ["repos"]},
-                  {:text, 1, 11, ~c":\n- "},
-                  {:tag, 2, 3, [], ["", ""]},
-                  {:text, 2, 8, ~c"\n"},
+                  {:text, 1, 11, ~c":"},
+                  {:new_line, 2, 0},
+                  {:text, 2, 0, ~c"- "},
+                  {:tag, 2, 3, [], ["."]},
+                  {:new_line, 3, 0},
                   {:tag, 3, 1, ~c"/", ["repo"]},
                   {:eof, 3, 10}
                 ]}
@@ -50,6 +52,22 @@ defmodule Jennie.TokeniserTest do
                   {:text, 1, 13, ~c"This should not be rendered."},
                   {:tag, 1, 41, ~c"/", ["boolean"]},
                   {:eof, 1, 53}
+                ]}
+    end
+
+    test "whitespace problems" do
+      assert T.tokenise("| This Is\n{{#boolean}}\n|\n{{/boolean}}\n| A Line\n", 1, 1, @opts) ==
+               {:ok,
+                [
+                  {:text, 1, 1, ~c"| This Is"},
+                  {:tag, 2, 1, ~c"#", ["boolean"]},
+                  {:new_line, 3, 0},
+                  {:text, 3, 0, ~c"|"},
+                  {:new_line, 4, 0},
+                  {:tag, 4, 1, ~c"/", ["boolean"]},
+                  {:text, 5, 0, ~c"| A Line"},
+                  {:new_line, 6, 0},
+                  {:eof, 6, 1}
                 ]}
     end
   end

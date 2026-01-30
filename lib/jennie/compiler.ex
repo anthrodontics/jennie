@@ -35,19 +35,24 @@ defmodule Jennie.Compiler do
     generate_buffer(rest, buffer, state)
   end
 
-  defp generate_buffer([{:tag, line, column, ~c"", expr} | rest], buffer, state) do
-    buffer = state.engine.handle_tag(buffer, {line, column}, expr, state)
+  defp generate_buffer([{:whitespace, _, _, chars} | rest], buffer, state) do
+    buffer = state.engine.handle_text(buffer, chars)
     generate_buffer(rest, buffer, state)
   end
 
-  defp generate_buffer(
-         [{:tag, line, column, ~c"#", expr} | rest],
-         buffer,
-         %{scope: scope} = state
-       ) do
-    buffer = state.engine.handle_context(buffer, {line, column}, expr, state)
-    token = Enum.join(expr, ".")
-    generate_buffer(rest, buffer, %{state | scope: [token | scope]})
+  defp generate_buffer([{:new_line, _, _} | rest], buffer, state) do
+    buffer = state.engine.handle_text(buffer, "\n")
+    generate_buffer(rest, buffer, state)
+  end
+
+  defp generate_buffer([{:tag, _, _, ~c"", expr} | rest], buffer, state) do
+    buffer = state.engine.handle_tag(buffer, expr, state)
+    generate_buffer(rest, buffer, state)
+  end
+
+  defp generate_buffer([{:tag, _, _, ~c"#", expr} | rest], buffer, %{scope: scope} = state) do
+    buffer = state.engine.handle_context(buffer, expr, state)
+    generate_buffer(rest, buffer, %{state | scope: [Enum.join(expr, ".") | scope]})
   end
 
   defp generate_buffer([{:tag, line, column, ~c"/", _}], _buffer, %{scope: scope})
@@ -63,8 +68,8 @@ defmodule Jennie.Compiler do
          buffer,
          %{scope: [head | tail]} = state
        ) do
-    if head == IO.chardata_to_string(expr) do
-      buffer = state.engine.reset_context(buffer)
+    if head == Enum.join(expr, ".") do
+      buffer = state.engine.pop_context(buffer)
       generate_buffer(rest, buffer, %{state | scope: tail})
     else
       raise Jennie.SyntaxError,
@@ -91,4 +96,13 @@ defmodule Jennie.Compiler do
       line: line,
       column: column
   end
+
+  # defp process() do
+  #   if is_map(eval) do
+  #     raise Jennie.SyntaxError,
+  #       message: "Incomplete expansion of tag `#{Enum.join(expr, ".")}`.",
+  #       line: line,
+  #       column: column
+  #   end
+  # end
 end

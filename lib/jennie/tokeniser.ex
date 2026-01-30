@@ -1,17 +1,10 @@
 defmodule Jennie.Tokeniser do
-  @spaces [?\s, ?\t]
-
   def tokenise(bin, line, column, opts) when is_binary(bin) do
     tokenise(String.to_charlist(bin), line, column, opts)
   end
 
   def tokenise(list, line, column, opts)
       when is_list(list) and is_integer(line) and line >= 0 and is_integer(column) and column >= 0 do
-    column = opts.indentation + column
-
-    {list, line, column} =
-      (opts.trim && trim_init(list, line, column, opts)) || {list, line, column}
-
     tokenise(list, line, column, opts, [{line, column}], [])
   end
 
@@ -23,17 +16,22 @@ defmodule Jennie.Tokeniser do
         error
 
       {:ok, expr, new_line, new_column, rest} ->
-        {rest, new_line, new_column, buffer} =
-          trim_if_needed(rest, new_line, new_column, opts, buffer)
-
         acc = tokenise_text(buffer, acc)
         final = {:tag, line, column, marker, token_key(expr, [], [])}
         tokenise(rest, new_line, new_column, opts, [{new_line, new_column}], [final | acc])
     end
   end
 
+  defp tokenise(~c"\r\n" ++ t, line, _column, opts, buffer, acc) do
+    new_line = {:new_line, line + 1, 0}
+    acc = tokenise_text(buffer, acc)
+    tokenise(t, line + 1, opts.indentation + 1, opts, [{line + 1, 0}], [new_line | acc])
+  end
+
   defp tokenise(~c"\n" ++ t, line, _column, opts, buffer, acc) do
-    tokenise(t, line + 1, opts.indentation + 1, opts, [?\n | buffer], acc)
+    new_line = {:new_line, line + 1, 0}
+    acc = tokenise_text(buffer, acc)
+    tokenise(t, line + 1, opts.indentation + 1, opts, [{line + 1, 0}], [new_line | acc])
   end
 
   defp tokenise([h | t], line, column, opts, buffer, acc) do
@@ -42,11 +40,11 @@ defmodule Jennie.Tokeniser do
 
   defp tokenise([], line, column, _opts, buffer, acc) do
     eof = {:eof, line, column}
-    {:ok, Enum.reverse([eof | tokenise_text(buffer, acc)])}
+    tokens = Enum.reverse([eof | tokenise_text(buffer, acc)])
+    {:ok, trim(tokens)}
   end
 
   # Tokenise an expression until }} is found
-
   defp expr([?}, ?} | t], line, column, _opts, buffer) do
     {:ok, Enum.reverse(buffer), line, column + 2, t}
   end
@@ -68,6 +66,8 @@ defmodule Jennie.Tokeniser do
   end
 
   # Parses the internal expression of a tag
+  defp token_key(~c".", _, _), do: ["."]
+
   defp token_key(~c"." ++ rest, current, acc) do
     token = current |> Enum.reverse() |> IO.chardata_to_string()
     token_key(rest, [], [token | acc])
@@ -101,61 +101,31 @@ defmodule Jennie.Tokeniser do
 
   defp tokenise_text(buffer, acc) do
     [{line, column} | buffer] = Enum.reverse(buffer)
-    [{:text, line, column, buffer} | acc]
+    tag = if Enum.all?(buffer, &(&1 == ?\s)), do: :whitespace, else: :text
+    [{tag, line, column, buffer} | acc]
   end
 
-  defp trim_if_needed(rest, line, column, opts, buffer) do
-    if opts.trim do
-      buffer = trim_left(buffer, 0)
-      {rest, line, column} = trim_right(rest, line, column, 0, opts)
-      {rest, line, column, buffer}
-    else
-      {rest, line, column, buffer}
-    end
+  defp trim(tokens) do
+    {_, _, tokens} =
+      Enum.reduce(tokens, {nil, nil, []}, fn current, {prev, prev2, acc} ->
+        case {prev2, prev, current} do
+          {{:new_line, _, _}, {:tag, _, _, ~c"#", _}, {:new_line, _, _}} ->
+            {current, prev, [current | List.delete_at(acc, 1)]}
+
+          {{:whitespace, _, _, _}, {:tag, _, _, ~c"#", _}, {:new_line, _, _}} ->
+            {current, prev, List.delete_at(acc, 1)}
+
+          {{:new_line, _, _}, {:tag, _, _, ~c"/", _}, {:new_line, _, _}} ->
+            {prev, prev2, acc}
+
+          {{:new_line, _, _}, {:whitespace, _, _, _}, {:tag, _, _, ~c"/", _}} ->
+            {current, prev, [current | Enum.drop(acc, 2)]}
+
+          {_, _, _} ->
+            {current, prev, [current | acc]}
+        end
+      end)
+
+    Enum.reverse(tokens)
   end
-
-  defp trim_init([h | t], line, column, opts) when h in @spaces,
-    do: trim_init(t, line, column + 1, opts)
-
-  defp trim_init([?\r, ?\n | t], line, _column, opts),
-    do: trim_init(t, line + 1, opts.indentation + 1, opts)
-
-  defp trim_init([?\n | t], line, _column, opts),
-    do: trim_init(t, line + 1, opts.indentation + 1, opts)
-
-  defp trim_init([?<, ?{ | _] = rest, line, column, _opts),
-    do: {rest, line, column}
-
-  defp trim_init(_, _, _, _), do: false
-
-  defp trim_left(buffer, count) do
-    case trim_whitespace(buffer, 0) do
-      {[?\n, ?\r | rest], _} -> trim_left(rest, count + 1)
-      {[?\n | rest], _} -> trim_left(rest, count + 1)
-      _ when count > 0 -> [?\n | buffer]
-      _ -> buffer
-    end
-  end
-
-  defp trim_right(rest, line, column, last_column, opts) do
-    case trim_whitespace(rest, column) do
-      {[?\r, ?\n | rest], column} ->
-        trim_right(rest, line + 1, opts.indentation + 1, column + 1, opts)
-
-      {[?\n | rest], column} ->
-        trim_right(rest, line + 1, opts.indentation + 1, column, opts)
-
-      {[], column} ->
-        {[], line, column}
-
-      _ when last_column > 0 ->
-        {[?\n | rest], line - 1, last_column}
-
-      _ ->
-        {rest, line, column}
-    end
-  end
-
-  defp trim_whitespace([h | t], column) when h in @spaces, do: trim_whitespace(t, column + 1)
-  defp trim_whitespace(list, column), do: {list, column}
 end
