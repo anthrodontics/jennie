@@ -5,23 +5,14 @@ defmodule Jennie.Engine do
 
   @empty [%{}, false, nil, [], ""]
 
-  defstruct ~w(binary dynamic context_stack cache)a
+  defstruct ~w(binary dynamic)a
 
-  def init(_opts) do
+  def init() do
     %__MODULE__{
       binary: [],
-      dynamic: nil,
-      cache: %{}
+      dynamic: nil
     }
   end
-
-  def push_context(%{context_stack: context_stack} = state, expr, context) do
-    map = %{name: expr, value: context}
-    %{state | context_stack: [map | context_stack]}
-  end
-
-  def pop_context(%{context_stack: [_head | tail]} = state),
-    do: %{state | context_stack: tail}
 
   # Checks whether current context has a nil state
   defp nil_context?([{_, value} | _]) do
@@ -48,12 +39,6 @@ defmodule Jennie.Engine do
       |> handle_assigns(scope, expr)
 
     %{state | binary: [to_charlist(eval) | binary]}
-
-    # if is_list(eval) or is_map(eval) do
-    #   %{state | dynamic: [eval | dynamic]}
-    # else
-
-    # end
   end
 
   defp to_map({_, assign}) when is_map(assign), do: assign
@@ -65,6 +50,13 @@ defmodule Jennie.Engine do
 
   def handle_context(state, expr, %{assigns: assigns, scope: scope}) do
     context = handle_assigns(assigns, scope, expr)
+
+    context =
+      if is_list(context) and length(context) == 1 do
+        List.first(context)
+      else
+        context
+      end
 
     %{state | dynamic: {Enum.join(expr, "."), context}}
   end

@@ -198,31 +198,31 @@ defmodule JennieTest do
       assert Jennie.render(template, data) == expected
     end
 
-    #   test "List Contexts - All elements on the context stack should be accessible within lists" do
-    #     data = %{
-    #       "tops" => [
-    #         %{
-    #           "tname" => %{"upper" => "A", "lower" => "a"},
-    #           "middles" => [
-    #             %{
-    #               "mname" => "1",
-    #               "bottoms" => [
-    #                 %{"bname" => "x"},
-    #                 %{"bname" => "y"}
-    #               ]
-    #             }
-    #           ]
-    #         }
-    #       ]
-    #     }
+    test "List Contexts - All elements on the context stack should be accessible within lists" do
+      data = %{
+        "tops" => [
+          %{
+            "tname" => %{"upper" => "A", "lower" => "a"},
+            "middles" => [
+              %{
+                "mname" => "1",
+                "bottoms" => [
+                  %{"bname" => "x"},
+                  %{"bname" => "y"}
+                ]
+              }
+            ]
+          }
+        ]
+      }
 
-    #     template =
-    #       "{{#tops}}{{#middles}}{{tname.lower}}{{mname}}.{{#bottoms}}{{tname.upper}}{{mname}}{{bname}}.{{/bottoms}}{{/middles}}{{/tops}}"
+      template =
+        "{{#tops}}{{#middles}}{{tname.lower}}{{mname}}.{{#bottoms}}{{tname.upper}}{{mname}}{{bname}}.{{/bottoms}}{{/middles}}{{/tops}}"
 
-    #     expected = "a1.A1x.A1y."
+      expected = "a1.A1x.A1y."
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
     test "Deeply Nested Contexts - All elements on the context stack should be accessible" do
       data = %{
@@ -276,21 +276,21 @@ defmodule JennieTest do
       assert Jennie.render(template, data) == expected
     end
 
-    #   test "List - Lists should be iterated; list items should visit the context stack" do
-    #     data = %{"list" => [%{"item" => 1}, %{"item" => 2}, %{"item" => 3}]}
-    #     template = "{{#list}}{{item}}{{/list}}"
-    #     expected = "123"
+    test "List - Lists should be iterated; list items should visit the context stack" do
+      data = %{"list" => [%{"item" => 1}, %{"item" => 2}, %{"item" => 3}]}
+      template = "{{#list}}{{item}}{{/list}}"
+      expected = "123"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Empty List - Empty lists should behave like falsey values" do
-    #     data = %{"list" => []}
-    #     template = "{{#list}}Yay lists!{{/list}}"
-    #     expected = ""
+    test "Empty List - Empty lists should behave like falsey values" do
+      data = %{"list" => []}
+      template = "{{#list}}Yay lists!{{/list}}"
+      expected = ""
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
     test "Doubled - Multiple sections per template should be permitted" do
       data = %{"bool" => true, "two" => "second"}
@@ -339,45 +339,45 @@ defmodule JennieTest do
       assert Jennie.render(template, data) == expected
     end
 
-    #   test "Implicit Iterator - String - Implicit iterators should directly interpolate strings" do
-    #     data = %{"list" => ["a", "b", "c", "d", "e"]}
-    #     template = "{{#list}}({{.}}){{/list}}"
-    #     expected = "(a)(b)(c)(d)(e)"
+    test "Implicit Iterator - String - Implicit iterators should directly interpolate strings" do
+      data = %{"list" => ["a", "b", "c", "d", "e"]}
+      template = "{{#list}}({{.}}){{/list}}"
+      expected = "(a)(b)(c)(d)(e)"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Implicit Iterator - Integer - Implicit iterators should cast integers to strings and interpolate" do
-    #     data = %{"list" => [1, 2, 3, 4, 5]}
-    #     template = "{{#list}}({{.}}){{/list}}"
-    #     expected = "(1)(2)(3)(4)(5)"
+    test "Implicit Iterator - Integer - Implicit iterators should cast integers to strings and interpolate" do
+      data = %{"list" => [1, 2, 3, 4, 5]}
+      template = "{{#list}}({{.}}){{/list}}"
+      expected = "(1)(2)(3)(4)(5)"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Implicit Iterator - Decimal - Implicit iterators should cast decimals to strings and interpolate" do
-    #     data = %{"list" => [1.1, 2.2, 3.3, 4.4, 5.5]}
-    #     template = "{{#list}}({{.}}){{/list}}"
-    #     expected = "(1.1)(2.2)(3.3)(4.4)(5.5)"
+    test "Implicit Iterator - Decimal - Implicit iterators should cast decimals to strings and interpolate" do
+      data = %{"list" => [1.1, 2.2, 3.3, 4.4, 5.5]}
+      template = "{{#list}}({{.}}){{/list}}"
+      expected = "(1.1)(2.2)(3.3)(4.4)(5.5)"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Implicit Iterator - Array - Implicit iterators should allow iterating over nested arrays" do
-    #     data = %{"list" => [[1, 2, 3], ["a", "b", "c"]]}
-    #     template = "{{#list}}({{#.}}{{.}}{{/.}}){{/list}}"
-    #     expected = "(123)(abc)"
+    test "Implicit Iterator - Array - Implicit iterators should allow iterating over nested arrays" do
+      data = %{"list" => [[1, 2, 3], ["a", "b", "c"]]}
+      template = "{{#list}}({{#.}}{{.}}{{/.}}){{/list}}"
+      expected = "(123)(abc)"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
-    #   test "Implicit Iterator - Root-level - Implicit iterators should work on root-level lists" do
-    #     data = [%{"value" => "a"}, %{"value" => "b"}]
-    #     template = "{{#.}}({{value}}){{/.}}"
-    #     expected = "(a)(b)"
+    test "Implicit Iterator - Root-level - Implicit iterators should work on root-level lists" do
+      data = [%{"value" => "a"}, %{"value" => "b"}]
+      template = "{{#.}}({{value}}){{/.}}"
+      expected = "(a)(b)"
 
-    #     assert Jennie.render(template, data) == expected
-    #   end
+      assert Jennie.render(template, data) == expected
+    end
 
     test "Dotted Names - Truthy - Dotted names should be valid for Section tags" do
       data = %{"a" => %{"b" => %{"c" => true}}}
