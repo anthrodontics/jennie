@@ -31,17 +31,17 @@ defmodule Jennie.Compiler do
   end
 
   defp generate_buffer([{:text, _, _, chars} | rest], buffer, state) do
-    buffer = state.engine.handle_text(buffer, chars)
+    buffer = state.engine.handle_text(buffer, chars, state)
     generate_buffer(rest, buffer, state)
   end
 
   defp generate_buffer([{:whitespace, _, _, chars} | rest], buffer, state) do
-    buffer = state.engine.handle_text(buffer, chars)
+    buffer = state.engine.handle_text(buffer, chars, state)
     generate_buffer(rest, buffer, state)
   end
 
   defp generate_buffer([{:new_line, _, _} | rest], buffer, state) do
-    buffer = state.engine.handle_text(buffer, "\n")
+    buffer = state.engine.handle_text(buffer, "\n", state)
     generate_buffer(rest, buffer, state)
   end
 
@@ -51,26 +51,27 @@ defmodule Jennie.Compiler do
   end
 
   defp generate_buffer([{:tag, _, _, ~c"#", expr} | rest], buffer, %{scope: scope} = state) do
-    buffer = state.engine.handle_context(buffer, expr, state)
-    generate_buffer(rest, buffer, %{state | scope: [Enum.join(expr, ".") | scope]})
+    %{dynamic: map} = buffer = state.engine.handle_context(buffer, expr, state)
+    updated_scope = [map | scope]
+    generate_buffer(rest, buffer, %{state | scope: updated_scope})
   end
 
   defp generate_buffer([{:tag, line, column, ~c"/", _}], _buffer, %{scope: scope})
-       when length(scope) > 0 do
-    raise Jennie.SyntaxError,
-      message: "Cannot close section, because corresponding opening section is missing",
-      line: line,
-      column: column
-  end
+       when length(scope) > 0,
+       do:
+         error(
+           "Cannot close section, because corresponding opening section is missing",
+           line,
+           column
+         )
 
   defp generate_buffer(
          [{:tag, line, column, ~c"/", expr} | rest],
          buffer,
-         %{scope: [head | tail]} = state
+         %{scope: [{scope_name, _} | stack]} = state
        ) do
-    if head == Enum.join(expr, ".") do
-      buffer = state.engine.pop_context(buffer)
-      generate_buffer(rest, buffer, %{state | scope: tail})
+    if scope_name == Enum.join(expr, ".") do
+      generate_buffer(rest, buffer, %{state | scope: stack})
     else
       raise Jennie.SyntaxError,
         message: "Closing section prematurely",
@@ -79,23 +80,15 @@ defmodule Jennie.Compiler do
     end
   end
 
-  defp generate_buffer([{:eof, line, column}], _buffer, %{scope: scope}) when length(scope) > 0 do
-    raise Jennie.SyntaxError,
-      message: "A section tag is still open",
-      line: line,
-      column: column
-  end
+  defp generate_buffer([{:eof, line, column}], _buffer, %{scope: scope}) when length(scope) > 0,
+    do: error("A section tag is still open", line, column)
 
   defp generate_buffer([{:eof, _, _}], buffer, %{scope: []} = state) do
     state.engine.handle_body(buffer)
   end
 
-  defp generate_buffer([{:eof, line, column}], _buffer, _state) do
-    raise Jennie.SyntaxError,
-      message: "unexpected end of string, expected a closing {{/<thing>}}",
-      line: line,
-      column: column
-  end
+  defp generate_buffer([{:eof, line, column}], _buffer, _state),
+    do: error("unexpected end of string, expected a closing {{/<thing>}}", line, column)
 
   # defp process() do
   #   if is_map(eval) do
@@ -105,4 +98,12 @@ defmodule Jennie.Compiler do
   #       column: column
   #   end
   # end
+  #
+
+  defp error(message, line, column) do
+    raise Jennie.SyntaxError,
+      message: message,
+      line: line,
+      column: column
+  end
 end

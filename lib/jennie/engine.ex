@@ -3,81 +3,88 @@ defmodule Jennie.Engine do
   Engine that actions on Jennie tokens
   """
 
-  defstruct ~w(binary dynamic null_context_stack)a
+  @empty [%{}, false, nil, [], ""]
+
+  defstruct ~w(binary dynamic context_stack cache)a
 
   def init(_opts) do
     %__MODULE__{
       binary: [],
-      dynamic: [],
-      null_context_stack: []
+      dynamic: nil,
+      cache: %{}
     }
   end
 
-  def pop_context(%{null_context_stack: [_head | tail]} = state),
-    do: %{state | null_context_stack: tail}
-
-  def insert_into_context(%{null_context_stack: stack} = state, item),
-    do: %{state | null_context_stack: [validate_context(item) | stack]}
-
-  defp context?([pop | _rest]), do: pop
-  defp context?([]), do: true
-
-  defp validate_context(item) do
-    if item in [%{}, false, nil, [], ""], do: false, else: true
+  def push_context(%{context_stack: context_stack} = state, expr, context) do
+    map = %{name: expr, value: context}
+    %{state | context_stack: [map | context_stack]}
   end
 
-  def handle_text(state, text) do
-    check_state!(state)
-    %{binary: binary, null_context_stack: stack} = state
-    if context?(stack), do: %{state | binary: [text | binary]}, else: state
+  def pop_context(%{context_stack: [_head | tail]} = state),
+    do: %{state | context_stack: tail}
+
+  # Checks whether current context has a nil state
+  defp nil_context?([{_, value} | _]) do
+    if value in @empty, do: true, else: false
+  end
+
+  defp nil_context?([]), do: false
+
+  def handle_text(state, text, %{scope: scope}) do
+    %{binary: binary} = state
+    if nil_context?(scope), do: state, else: %{state | binary: [text | binary]}
   end
 
   def handle_tag(state, expr, %{assigns: assigns, scope: scope}) do
-    check_state!(state)
-    %{binary: binary, dynamic: dynamic} = state
+    %{binary: binary} = state
 
-    eval = handle_assigns(assigns, scope, expr)
+    eval =
+      scope
+      |> Enum.reduce(assigns, fn context, acc ->
+        context
+        |> to_map()
+        |> merge(acc, length(expr) == 1)
+      end)
+      |> handle_assigns(scope, expr)
 
-    if is_list(eval) or is_map(eval) do
-      %{state | dynamic: [eval | dynamic]}
-    else
-      %{state | binary: [to_charlist(eval) | binary]}
-    end
+    %{state | binary: [to_charlist(eval) | binary]}
+
+    # if is_list(eval) or is_map(eval) do
+    #   %{state | dynamic: [eval | dynamic]}
+    # else
+
+    # end
   end
 
+  defp to_map({_, assign}) when is_map(assign), do: assign
+
+  defp to_map({name, assign}), do: %{name => assign}
+
+  defp merge(map1, map2, false), do: Map.merge(map1, map2)
+  defp merge(map1, map2, true), do: Map.merge(map2, map1)
+
   def handle_context(state, expr, %{assigns: assigns, scope: scope}) do
-    check_state!(state)
+    context = handle_assigns(assigns, scope, expr)
 
-    eval_context = handle_assigns(assigns, scope, expr)
-
-    insert_into_context(state, eval_context)
+    %{state | dynamic: {Enum.join(expr, "."), context}}
   end
 
   defp handle_assigns(%{"default" => data}, _, ["."]), do: data
 
-  defp handle_assigns(assigns, [head | _rest], ["."]) do
-    Access.get(assigns, head)
+  defp handle_assigns(_assigns, [{_, head} | _rest], ["."]), do: head
+
+  defp handle_assigns(assigns, [{_, parent_scope_assigns} | _rest], expr)
+       when is_map(parent_scope_assigns) do
+    get_in(assigns, expr) || get_in(parent_scope_assigns, expr)
   end
 
-  defp handle_assigns(assigns, [head | _], [expr | _]) when head == expr,
-    do: Access.get(assigns, expr)
-
-  defp handle_assigns(assigns, scope, expr) do
-    get_in(assigns, scope ++ expr) || get_in(assigns, expr)
+  defp handle_assigns(assigns, _scope, expr) do
+    get_in(assigns, expr)
   end
 
   def handle_body(state) do
-    check_state!(state)
     %{binary: binary} = state
 
     :erlang.list_to_binary(Enum.reverse(binary))
-  end
-
-  # Validate that we're passing around THE ENGINE, not something lame
-  defp check_state!(%__MODULE__{}), do: :ok
-
-  defp check_state!(state) do
-    raise "unexpected Jennie.Engine state: #{inspect(state)}." <>
-            "This means either there's a bug or an outdated Jennie Engine"
   end
 end
