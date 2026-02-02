@@ -24,7 +24,7 @@ end
 ## Usage
 
 ```elixir
-Jennie.render("Hello {{name}}!", %{name: "World"})
+Jennie.render("Hello {{name}}!", %{"name" => "World"})
 # Hello World!
 ```
 
