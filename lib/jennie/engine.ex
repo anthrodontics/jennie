@@ -15,18 +15,20 @@ defmodule Jennie.Engine do
   end
 
   # Checks whether current context has a nil state
-  defp nil_context?([{_, value} | _]) do
+  defp nil_context?(_, true), do: false
+  
+  defp nil_context?([{_, value} | _], false) do
     if value in @empty, do: true, else: false
   end
 
-  defp nil_context?([]), do: false
+  defp nil_context?([], _), do: false
 
-  def handle_text(state, text, %{scope: scope}) do
+  def handle_text(state, text, %{scope: scope, ignore_nil: ignore}) do
     %{binary: binary} = state
-    if nil_context?(scope), do: state, else: %{state | binary: [text | binary]}
+    if nil_context?(scope, ignore), do: state, else: %{state | binary: [text | binary]}
   end
 
-  def handle_tag(state, expr, %{assigns: assigns, scope: scope}) do
+  def handle_tag(state, expr, %{assigns: assigns, scope: scope, ignore_nil: ignore}) do
     %{binary: binary} = state
 
     eval =
@@ -37,6 +39,11 @@ defmodule Jennie.Engine do
         |> merge(acc, length(expr) == 1)
       end)
       |> handle_assigns(scope, expr)
+      |> clean_up(expr, ignore)
+      
+    # TODO: reiterate again
+    # TODO: This example currently fails: Jennie.render("{{#family}}{{#people}}{{.}}{{/people}}{{/family}}", %{"family" => %{"people" => ["Mum", "Dad", "Son", "Daughter"]}})
+  
 
     %{state | binary: [to_charlist(eval) | binary]}
   end
@@ -48,7 +55,11 @@ defmodule Jennie.Engine do
   defp merge(map1, map2, false), do: Map.merge(map1, map2)
   defp merge(map1, map2, true), do: Map.merge(map2, map1)
 
-  def handle_context(state, expr, %{assigns: assigns, scope: scope}) do
+  defp clean_up(eval, expr, true) when eval in @empty, do: "{{#{expr}}}"
+  
+  defp clean_up(eval, _expr, _), do: eval
+
+  def handle_context(state, expr, %{assigns: assigns, scope: scope, ignore_nil: ignore}) do
     context = handle_assigns(assigns, scope, expr)
 
     context =
@@ -57,11 +68,22 @@ defmodule Jennie.Engine do
       else
         context
       end
-
-    %{state | dynamic: {Enum.join(expr, "."), context}}
+    
+    if ignore and context in @empty do
+      %{binary: binary} = state
+      %{state |
+        dynamic: {Enum.join(expr, "."), nil},
+        binary: [to_charlist("{{#{expr}}}") | binary]}
+    else
+      %{state | dynamic: {Enum.join(expr, "."), context}}
+    end
   end
 
   defp handle_assigns(%{"default" => data}, _, ["."]), do: data
+  
+  defp handle_assigns(assigns, [{_, head} | _rest], ["."]) when is_map(head) do
+    Access.get(assigns, ".")
+  end
 
   defp handle_assigns(_assigns, [{_, head} | _rest], ["."]), do: head
 

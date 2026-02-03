@@ -16,7 +16,7 @@ Add `jennie` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:jennie, "~> 0.1.0"}
+    {:jennie, "~> 0.8.1"}
   ]
 end
 ```

@@ -5,6 +5,7 @@ defmodule Jennie.Compiler do
     line = opts[:line] || 1
     column = 1
     indentation = opts[:indentation] || 0
+    ignore_nil = opts[:ignore_nil] || false
 
     tokeniser_options = %{indentation: indentation}
 
@@ -14,6 +15,7 @@ defmodule Jennie.Compiler do
           engine: opts[:engine] || @default_engine,
           line: line,
           assigns: assigns,
+          ignore_nil: ignore_nil,
           scope: []
         }
 
@@ -29,12 +31,14 @@ defmodule Jennie.Compiler do
     end
   end
 
-  defp generate_buffer(rest, buffer, %{scope: [{name, children} | _] = scope} = state)
+  defp generate_buffer(rest, buffer, %{ignore_nil: ignore_nil, scope: [{name, children} | _] = scope} = state)
        when is_list(children) do
+    tag = if name == ".", do: [name], else: String.split(name, ".")
+    
     {found?, tokens} =
       Enum.reduce_while(rest, {false, []}, fn look_ahead, {_, acc} ->
         case look_ahead do
-          {:tag, _, _, ~c"/", [^name]} ->
+          {:tag, _, _, ~c"/", ^tag} ->
             {:halt, {true, Enum.reverse(acc)}}
 
           token ->
@@ -54,7 +58,7 @@ defmodule Jennie.Compiler do
         assigns = merge(state.assigns, child)
 
         %{binary: new} =
-          generate_buffer(tokens, state.engine.init(), %{state | scope: scope, assigns: assigns})
+          generate_buffer(tokens, state.engine.init(), %{state | scope: scope, assigns: assigns, ignore_nil: ignore_nil})
 
         %{acc | binary: new ++ binary}
       end)
@@ -62,7 +66,7 @@ defmodule Jennie.Compiler do
     # need to remove all the look ahead tokens before continuing.
     buffer = %{buffer | binary: new_buffer.binary ++ buffer.binary}
     drop_amount = length(tokens) + 1
-    generate_buffer(Enum.drop(rest, drop_amount), buffer, %{state | scope: scope})
+    generate_buffer(Enum.drop(rest, drop_amount), buffer, %{state | scope: scope, ignore_nil: ignore_nil})
   end
 
   defp generate_buffer([{:text, _, _, chars} | rest], buffer, state) do
@@ -106,6 +110,13 @@ defmodule Jennie.Compiler do
          %{scope: [{scope_name, _} | stack]} = state
        ) do
     if scope_name == Enum.join(expr, ".") do
+      %{dynamic: {_, scope_var}} = buffer
+      buffer = if state.ignore_nil and scope_var == nil do
+        close_tag = to_charlist("{{/#{scope_name}}}")
+        state.engine.handle_text(buffer, close_tag, state)
+      else
+        buffer
+      end
       generate_buffer(rest, buffer, %{state | scope: stack})
     else
       raise Jennie.SyntaxError,
