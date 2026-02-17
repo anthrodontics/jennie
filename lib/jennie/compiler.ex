@@ -35,14 +35,21 @@ defmodule Jennie.Compiler do
        when is_list(children) do
     tag = if name == ".", do: [name], else: String.split(name, ".")
     
-    {found?, tokens} =
-      Enum.reduce_while(rest, {false, []}, fn look_ahead, {_, acc} ->
+    {found?, tokens, drop_amount} =
+      Enum.reduce_while(rest, {false, [], 0}, fn look_ahead, {_, acc, _} ->
         case look_ahead do
           {:tag, _, _, ~c"/", ^tag} ->
-            {:halt, {true, Enum.reverse(acc)}}
+            {acc, drop_amount} =
+              with [new_line? | rest] <- acc,
+              {:new_line, _, _} <- new_line? do
+                {rest, 2}
+              else
+                _ -> {acc, 1}
+              end
+            {:halt, {true, Enum.reverse(acc), drop_amount}}
 
           token ->
-            {:cont, {false, [token | acc]}}
+            {:cont, {false, [token | acc], 1}}
         end
       end)
 
@@ -65,7 +72,7 @@ defmodule Jennie.Compiler do
 
     # need to remove all the look ahead tokens before continuing.
     buffer = %{buffer | binary: new_buffer.binary ++ buffer.binary}
-    drop_amount = length(tokens) + 1
+    drop_amount = length(tokens) + drop_amount
     generate_buffer(Enum.drop(rest, drop_amount), buffer, %{state | scope: scope, ignore_nil: ignore_nil})
   end
 

@@ -2,13 +2,14 @@ defmodule Jennie do
   @doc """
   Renders template by substituting tags
   
-    ## Examples
+  ## Examples
     
-    iex> Jennie.render("Hello {{guest}}!", %{"guest" => "World"})
+      iex> Jennie.render("Hello {{guest}}!", %{"guest" => "World"})
   """
   def render(source, data \\ %{}, opts \\ [])
 
   def render(source, data, opts) when is_map(data) do
+    data = Jennie.Utils.to_map(data)
     Jennie.Compiler.compile(source, data, opts)
   end
 
@@ -19,13 +20,13 @@ defmodule Jennie do
   @doc """
   Finds all tokens in the template
   
-    ## Examples
+  ## Examples
   
-    iex> Jennie.scan("{{name}}")
-    ["name"]
+      iex> Jennie.scan("{{name}}")
+      ["name"]
     
-    iex> Jennie.scan("{{#family}}{{.}}{{/family}}")
-    ["family"]
+      iex> Jennie.scan("{{#family}}{{.}}{{/family}}")
+      ["family"]
   """
   def scan(source) do
     {:ok, tokens} = Jennie.Tokeniser.tokenise(source, 1, 1, %{indentation: 0})
@@ -47,15 +48,16 @@ defmodule Jennie do
   @doc """
   Finds all tokens in the template
   
-    ## Examples
+  ## Examples
   
-    iex> Jennie.missing?("{{name}}", %{})
-    ["name"]
+      iex> Jennie.missing?("{{name}}", %{})
+      ["name"]
     
-    iex> Jennie.missing?("{{my_love_life}}", %{}) == ["my_love_life"]
-    true
+      iex> Jennie.missing?("{{my_love_life}}", %{}) == ["my_love_life"]
+      true
   """
   def missing?(source, data) do
+    data = Jennie.Utils.to_map(data)
     source_tags = scan(source)
     Enum.filter(source_tags, fn tag ->
       Map.get(data, tag) == nil

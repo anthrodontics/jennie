@@ -466,5 +466,24 @@ defmodule JennieTest do
 
       assert Jennie.render(template, data) == expected
     end
+    
+    test "Sections - newlines before the section should be removed" do
+      data = %{"planets" => ["Earth", "Mars", "Venus"]}
+      template = "{{#planets}}\n- {{.}}\n{{/planets}}\n"
+      expected = "\n- Earth\n- Mars\n- Venus"
+  
+      assert Jennie.render(template, data) == expected
+    end
+    
+    defmodule Planet do
+      defstruct [:name, :colour]
+    end
+    
+    test "Sections - structs can also be referenced" do
+      template = "{{#planets}}{{name}}{{/planets}}"
+      expected = "Earth"
+      
+      assert Jennie.render(template, %{"planets" => [%Planet{:name => "Earth", :colour => "blue"}]}) == expected
+    end
   end
 end
