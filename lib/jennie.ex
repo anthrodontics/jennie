@@ -9,6 +9,7 @@ defmodule Jennie do
   def render(source, data \\ %{}, opts \\ [])
 
   def render(source, data, opts) when is_map(data) do
+    data = Jennie.Utils.to_map(data)
     Jennie.Compiler.compile(source, data, opts)
   end
 
@@ -56,6 +57,7 @@ defmodule Jennie do
       true
   """
   def missing?(source, data) do
+    data = Jennie.Utils.to_map(data)
     source_tags = scan(source)
     Enum.filter(source_tags, fn tag ->
       Map.get(data, tag) == nil

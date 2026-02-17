@@ -474,5 +474,16 @@ defmodule JennieTest do
   
       assert Jennie.render(template, data) == expected
     end
+    
+    defmodule Planet do
+      defstruct [:name, :colour]
+    end
+    
+    test "Sections - structs can also be referenced" do
+      template = "{{#planets}}{{name}}{{/planets}}"
+      expected = "Earth"
+      
+      assert Jennie.render(template, %{"planets" => [%Planet{:name => "Earth", :colour => "blue"}]}) == expected
+    end
   end
 end

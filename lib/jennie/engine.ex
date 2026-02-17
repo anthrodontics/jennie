@@ -40,10 +40,6 @@ defmodule Jennie.Engine do
       end)
       |> handle_assigns(scope, expr)
       |> clean_up(expr, ignore)
-      
-    # TODO: reiterate again
-    # TODO: This example currently fails: Jennie.render("{{#family}}{{#people}}{{.}}{{/people}}{{/family}}", %{"family" => %{"people" => ["Mum", "Dad", "Son", "Daughter"]}})
-  
 
     %{state | binary: [to_charlist(eval) | binary]}
   end
