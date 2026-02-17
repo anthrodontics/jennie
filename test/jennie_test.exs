@@ -466,5 +466,13 @@ defmodule JennieTest do
 
       assert Jennie.render(template, data) == expected
     end
+    
+    test "Sections - newlines before the section should be removed" do
+      data = %{"planets" => ["Earth", "Mars", "Venus"]}
+      template = "{{#planets}}\n- {{.}}\n{{/planets}}\n"
+      expected = "\n- Earth\n- Mars\n- Venus"
+  
+      assert Jennie.render(template, data) == expected
+    end
   end
 end
