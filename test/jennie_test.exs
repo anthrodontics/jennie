@@ -2,7 +2,7 @@ defmodule JennieTest do
   use ExUnit.Case, async: true
   doctest Jennie
 
-  describe "Interpolation" do
+  describe "interpolation" do
     test "Jennie-free templates should render as-is." do
       assert Jennie.render("Hello from {Jennie}!\n") == "Hello from {Jennie}!\n"
     end
@@ -112,7 +112,7 @@ defmodule JennieTest do
         }
       }
 
-      assert Jennie.render("{{#a}}{{b.c}}{{/a}}", data) == "ERROR"
+      assert Jennie.render("{{#a}}{{b.c}}{{/a}}", data) == ""
     end
 
     test "Dotted names shall not be parsed as single, atomic keys" do
@@ -143,7 +143,7 @@ defmodule JennieTest do
     end
   end
 
-  describe "Sections" do
+  describe "sections" do
     test "Truthy - Truthy sections should have their contents rendered" do
       data = %{"boolean" => true}
       template = "{{#boolean}}This should be rendered.{{/boolean}}"
@@ -259,7 +259,6 @@ defmodule JennieTest do
       """
 
       expected = """
-
       1
       121
       12321
@@ -306,7 +305,6 @@ defmodule JennieTest do
       """
 
       expected = """
-
       * first
       * second
       * third
@@ -438,7 +436,7 @@ defmodule JennieTest do
     test "Standalone Line Endings - \\r\\n should be considered a newline for standalone tags" do
       data = %{"boolean" => true}
       template = "\n\n{{#boolean}}\r\n{{/boolean}}\n\n"
-      expected = "\n\n"
+      expected = "\n\n\n"
 
       assert Jennie.render(template, data) == expected
     end
@@ -454,7 +452,7 @@ defmodule JennieTest do
     test "Standalone Without Newline - Standalone tags should not require a newline to follow them" do
       data = %{"boolean" => true}
       template = "{{#boolean}}\n/\n  {{/boolean}}"
-      expected = "\n/"
+      expected = "/\n"
 
       assert Jennie.render(template, data) == expected
     end
@@ -466,24 +464,255 @@ defmodule JennieTest do
 
       assert Jennie.render(template, data) == expected
     end
-    
+
     test "Sections - newlines before the section should be removed" do
       data = %{"planets" => ["Earth", "Mars", "Venus"]}
       template = "{{#planets}}\n- {{.}}\n{{/planets}}\n"
-      expected = "\n- Earth\n- Mars\n- Venus"
-  
+      expected = "- Earth\n- Mars\n- Venus\n"
+
       assert Jennie.render(template, data) == expected
     end
-    
+
     defmodule Planet do
       defstruct [:name, :colour]
     end
-    
+
     test "Sections - structs can also be referenced" do
       template = "{{#planets}}{{name}}{{/planets}}"
       expected = "Earth"
-      
-      assert Jennie.render(template, %{"planets" => [%Planet{:name => "Earth", :colour => "blue"}]}) == expected
+
+      assert Jennie.render(template, %{
+               "planets" => [%Planet{:name => "Earth", :colour => "blue"}]
+             }) == expected
+    end
+  end
+
+  describe "HTML escaping" do
+    test "HTML-escapes by default" do
+      assert Jennie.render("{{x}}", %{"x" => "<b>&\"'"}) == "&lt;b&gt;&amp;&quot;&#39;"
+    end
+
+    test "triple mustache is unescaped and parses correctly" do
+      assert Jennie.render("{{{x}}}", %{"x" => "<b>"}) == "<b>"
+    end
+
+    test "ampersand is unescaped" do
+      assert Jennie.render("{{&x}}", %{"x" => "<b>"}) == "<b>"
+    end
+
+    test "escape function is overridable" do
+      up = fn s -> String.upcase(s) end
+      assert Jennie.render("{{x}}", %{"x" => "hi"}, escape: up) == "HI"
+    end
+  end
+
+  describe "inverted sections" do
+    test "renders on missing key" do
+      assert Jennie.render("{{^x}}no x{{/x}}", %{}) == "no x"
+    end
+
+    test "renders on falsey, not on truthy" do
+      assert Jennie.render("{{^x}}no{{/x}}", %{"x" => false}) == "no"
+      assert Jennie.render("{{^x}}no{{/x}}", %{"x" => true}) == ""
+    end
+
+    test "renders on empty list" do
+      assert Jennie.render("{{^x}}empty{{/x}}", %{"x" => []}) == "empty"
+    end
+  end
+
+  describe "comments" do
+    test "render nothing and do not collide with data keys" do
+      assert Jennie.render("a{{! ignore me }}b", %{}) == "ab"
+      assert Jennie.render("{{!foo}}", %{"!foo" => "X"}) == ""
+    end
+  end
+
+  describe "set delimiters" do
+    test "change delimiters for subsequent tags" do
+      assert Jennie.render("{{=<% %>=}}<%x%>", %{"x" => "hi"}) == "hi"
+    end
+  end
+
+  describe "partials" do
+    test "resolve from a map" do
+      assert Jennie.render("\"{{>t}}\"", %{}, partials: %{"t" => "in"}) == "\"in\""
+    end
+
+    test "resolve from a function" do
+      resolver = fn "t" -> "in" end
+      assert Jennie.render("{{>t}}", %{}, partials: resolver) == "in"
+    end
+
+    test "missing partial renders empty by default" do
+      assert Jennie.render("[{{>t}}]", %{}) == "[]"
+    end
+
+    test "missing partial raises when configured" do
+      assert_raise ArgumentError, fn ->
+        Jennie.render("{{>t}}", %{}, raise_on_missing_partial: true)
+      end
+    end
+
+    test "recursion terminates" do
+      data = %{"content" => "X", "nodes" => [%{"content" => "Y", "nodes" => []}]}
+      partials = %{"node" => "{{content}}<{{#nodes}}{{>node}}{{/nodes}}>"}
+      assert Jennie.render("{{>node}}", data, partials: partials) == "X<Y<>>"
+    end
+  end
+
+  describe "single-element list iteration" do
+    test "iterates over a one-element list of false" do
+      assert Jennie.render("{{#l}}X{{/l}}", %{"l" => [false]}) == "X"
+    end
+
+    test "iterates over a one-element list of empty map" do
+      assert Jennie.render("[{{#l}}X{{/l}}]", %{"l" => [%{}]}) == "[X]"
+    end
+
+    test "iterates over many elements" do
+      assert Jennie.render("{{#l}}({{.}}){{/l}}", %{"l" => ["a", "b"]}) == "(a)(b)"
+    end
+
+    test "empty list is falsey" do
+      assert Jennie.render("{{#l}}X{{/l}}", %{"l" => []}) == ""
+    end
+  end
+
+  describe "safe stringification" do
+    test "list value does not become raw bytes" do
+      assert Jennie.render("{{l}}", %{"l" => [1, 2]}) == "[1, 2]"
+    end
+
+    test "map value does not crash" do
+      assert Jennie.render("{{{m}}}", %{"m" => %{"a" => 1}}) == "%{\"a\" => 1}"
+    end
+
+    test "numbers, booleans, nil" do
+      assert Jennie.render("{{n}}", %{"n" => 42}) == "42"
+      assert Jennie.render("{{n}}", %{"n" => 1.21}) == "1.21"
+      assert Jennie.render("{{b}}", %{"b" => false}) == "false"
+      assert Jennie.render("[{{x}}]", %{"x" => nil}) == "[]"
+    end
+  end
+
+  describe "same-name nested sections" do
+    test "nest correctly for maps" do
+      assert Jennie.render("{{#a}}[{{#a}}x{{/a}}]{{/a}}", %{"a" => %{"a" => true}}) == "[x]"
+    end
+
+    test "nest correctly for booleans" do
+      assert Jennie.render("{{#a}}1{{#a}}2{{/a}}3{{/a}}", %{"a" => true}) == "123"
+    end
+  end
+
+  describe "data shapes" do
+    defmodule Planet do
+      defstruct [:name, :colour]
+    end
+
+    test "atom keys" do
+      assert Jennie.render("{{x}}", %{x: "v"}) == "v"
+    end
+
+    test "structs" do
+      assert Jennie.render("{{#planets}}{{name}}{{/planets}}", %{
+               "planets" => [%Planet{name: "Earth", colour: "blue"}]
+             }) == "Earth"
+    end
+
+    test "nested atom-keyed maps via dotted names" do
+      assert Jennie.render("{{a.b}}", %{a: %{b: "deep"}}) == "deep"
+    end
+
+    test "non-map top-level data via implicit iterator" do
+      assert Jennie.render("{{.}} miles", 85) == "85 miles"
+    end
+  end
+
+  describe "dotted names" do
+    test "resolve to any depth" do
+      data = %{"a" => %{"b" => %{"c" => %{"d" => "deep"}}}}
+      assert Jennie.render("{{a.b.c.d}}", data) == "deep"
+    end
+
+    test "broken chains are falsey" do
+      assert Jennie.render("[{{a.b.c}}]", %{"a" => %{}}) == "[]"
+    end
+
+    test "are not parsed as atomic keys" do
+      assert Jennie.render("{{a.b}}", %{"a.b" => "c"}) == ""
+    end
+
+    test "resolve against former resolutions only" do
+      data = %{"a" => %{"b" => %{}}, "b" => %{"c" => "ERROR"}}
+      assert Jennie.render("{{#a}}{{b.c}}{{/a}}", data) == ""
+    end
+  end
+
+  describe "ignore_nil" do
+    test "leaves absent tags in place" do
+      assert Jennie.render("{{x}} {{y}}", %{"x" => "X"}, ignore_nil: true) == "X {{y}}"
+    end
+
+    test "leaves absent sections in place" do
+      assert Jennie.render("{{#x}}body{{/x}}", %{}, ignore_nil: true) == "{{#x}}body{{/x}}"
+    end
+
+    test "distinguishes absent from present-but-empty" do
+      assert Jennie.render("[{{x}}]", %{"x" => ""}, ignore_nil: true) == "[]"
+      assert Jennie.render("[{{x}}]", %{"x" => nil}, ignore_nil: true) == "[]"
+    end
+  end
+
+  describe "compile / scan / missing?" do
+    test "compile once render many" do
+      {:ok, tpl} = Jennie.compile("Hi {{n}}")
+      assert Jennie.render(tpl, %{"n" => "A"}) == "Hi A"
+      assert Jennie.render(tpl, %{"n" => "B"}) == "Hi B"
+    end
+
+    test "compile returns structured error" do
+      assert {:error, %Jennie.SyntaxError{}} = Jennie.compile("{{#a}}oops")
+    end
+
+    test "scan lists referenced names, excluding comments/partials/implicit" do
+      assert Jennie.scan("{{a}}{{#b}}{{c}}{{.}}{{/b}}{{!x}}{{>p}}") == ["a", "b", "c"]
+    end
+
+    test "missing? reports absent top-level keys" do
+      assert Jennie.missing?("{{a}}{{b}}", %{"a" => 1}) == ["b"]
+    end
+  end
+
+  describe "errors" do
+    test "unclosed section" do
+      assert_raise Jennie.SyntaxError, fn -> Jennie.render("{{#a}}x", %{}) end
+    end
+
+    test "mismatched closing tag" do
+      assert_raise Jennie.SyntaxError, fn -> Jennie.render("{{#a}}x{{/b}}", %{}) end
+    end
+
+    test "closing an unopened section" do
+      assert_raise Jennie.SyntaxError, fn -> Jennie.render("x{{/a}}", %{}) end
+    end
+
+    test "unterminated tag" do
+      assert_raise Jennie.SyntaxError, fn -> Jennie.render("a {{ b ", %{}) end
+    end
+
+    test "carries an accurate line and column" do
+      err =
+        try do
+          Jennie.render("ok\nline2 {{/oops}}", %{})
+          nil
+        rescue
+          e in Jennie.SyntaxError -> e
+        end
+
+      assert err.line == 2
+      assert err.column == 7
     end
   end
 end

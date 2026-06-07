@@ -1,100 +1,23 @@
 defmodule Jennie.Engine do
   @moduledoc """
-  Engine that actions on Jennie tokens
+  Behaviour for output accumulation, plus the default iolist implementation.
   """
 
-  @empty [%{}, false, nil, [], ""]
+  @type acc :: term()
 
-  defstruct ~w(binary dynamic)a
+  @callback init() :: acc
+  @callback handle_text(acc, iodata()) :: acc
+  @callback handle_body(acc) :: binary()
 
-  def init() do
-    %__MODULE__{
-      binary: [],
-      dynamic: nil
-    }
-  end
+  @behaviour __MODULE__
 
-  # Checks whether current context has a nil state
-  defp nil_context?(_, true), do: false
-  
-  defp nil_context?([{_, value} | _], false) do
-    if value in @empty, do: true, else: false
-  end
+  @impl true
+  def init, do: []
 
-  defp nil_context?([], _), do: false
+  @impl true
+  # Fragments are prepended (reverse order) and reversed once in handle_body.
+  def handle_text(acc, iodata), do: [iodata | acc]
 
-  def handle_text(state, text, %{scope: scope, ignore_nil: ignore}) do
-    %{binary: binary} = state
-    if nil_context?(scope, ignore), do: state, else: %{state | binary: [text | binary]}
-  end
-
-  def handle_tag(state, expr, %{assigns: assigns, scope: scope, ignore_nil: ignore}) do
-    %{binary: binary} = state
-
-    eval =
-      scope
-      |> Enum.reduce(assigns, fn context, acc ->
-        context
-        |> to_map()
-        |> merge(acc, length(expr) == 1)
-      end)
-      |> handle_assigns(scope, expr)
-      |> clean_up(expr, ignore)
-
-    %{state | binary: [to_charlist(eval) | binary]}
-  end
-
-  defp to_map({_, assign}) when is_map(assign), do: assign
-
-  defp to_map({name, assign}), do: %{name => assign}
-
-  defp merge(map1, map2, false), do: Map.merge(map1, map2)
-  defp merge(map1, map2, true), do: Map.merge(map2, map1)
-
-  defp clean_up(eval, expr, true) when eval in @empty, do: "{{#{expr}}}"
-  
-  defp clean_up(eval, _expr, _), do: eval
-
-  def handle_context(state, expr, %{assigns: assigns, scope: scope, ignore_nil: ignore}) do
-    context = handle_assigns(assigns, scope, expr)
-
-    context =
-      if is_list(context) and length(context) == 1 do
-        List.first(context)
-      else
-        context
-      end
-    
-    if ignore and context in @empty do
-      %{binary: binary} = state
-      %{state |
-        dynamic: {Enum.join(expr, "."), nil},
-        binary: [to_charlist("{{#{expr}}}") | binary]}
-    else
-      %{state | dynamic: {Enum.join(expr, "."), context}}
-    end
-  end
-
-  defp handle_assigns(%{"default" => data}, _, ["."]), do: data
-  
-  defp handle_assigns(assigns, [{_, head} | _rest], ["."]) when is_map(head) do
-    Access.get(assigns, ".")
-  end
-
-  defp handle_assigns(_assigns, [{_, head} | _rest], ["."]), do: head
-
-  defp handle_assigns(assigns, [{_, parent_scope_assigns} | _rest], expr)
-       when is_map(parent_scope_assigns) do
-    get_in(assigns, expr) || get_in(parent_scope_assigns, expr)
-  end
-
-  defp handle_assigns(assigns, _scope, expr) do
-    get_in(assigns, expr)
-  end
-
-  def handle_body(state) do
-    %{binary: binary} = state
-
-    :erlang.list_to_binary(Enum.reverse(binary))
-  end
+  @impl true
+  def handle_body(acc), do: acc |> Enum.reverse() |> IO.iodata_to_binary()
 end

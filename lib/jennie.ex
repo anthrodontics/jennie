@@ -1,66 +1,145 @@
 defmodule Jennie do
-  @doc """
-  Renders template by substituting tags
-  
-  ## Examples
-    
-      iex> Jennie.render("Hello {{guest}}!", %{"guest" => "World"})
-  """
-  def render(source, data \\ %{}, opts \\ [])
+  @moduledoc """
+  Jennie — logic-less templates inspired by Moustache.
 
-  def render(source, data, opts) when is_map(data) do
-    data = Jennie.Utils.to_map(data)
-    Jennie.Compiler.compile(source, data, opts)
+  ## Quick start
+
+      iex> Jennie.render("Hello {{name}}!", %{"name" => "World"})
+      "Hello World!"
+
+      iex> Jennie.render("{{x}}", %{"x" => "<b>"})
+      "&lt;b&gt;"
+
+      iex> Jennie.render("{{{x}}}", %{"x" => "<b>"})
+      "<b>"
+
+  ## Compile once, render many
+
+      {:ok, tpl} = Jennie.compile("Hi {{name}}")
+      Jennie.render(tpl, %{"name" => "A"})
+      Jennie.render(tpl, %{"name" => "B"})
+
+  ## Options
+
+    * `:escape` — a `(binary -> iodata)` escaper (default: HTML)
+    * `:partials` — a `%{name => source}` map or `(name -> source | nil)` fun
+    * `:raise_on_missing_partial` — raise instead of rendering `""` (default `false`)
+    * `:engine` — output engine module (default `Jennie.Engine`)
+    * `:ignore_nil` — leave tags whose keys are absent in place (default `false`)
+  """
+
+  alias Jennie.{Parser, Renderer, Template, Tokeniser}
+
+  @doc """
+  Compile `source` into a reusable `Jennie.Template`.
+
+  Returns `{:ok, template}` or `{:error, %Jennie.SyntaxError{}}`.
+  """
+  @spec compile(String.t(), keyword()) :: {:ok, Template.t()} | {:error, Jennie.SyntaxError.t()}
+  def compile(source, _opts \\ []) when is_binary(source) do
+    {:ok, tokens} = Tokeniser.tokenise(source)
+    ast = Parser.parse(tokens)
+    {:ok, %Template{ast: ast, source: source}}
+  rescue
+    error in Jennie.SyntaxError -> {:error, error}
   end
 
-  def render(source, data, opts) do
-    Jennie.Compiler.compile(source, %{"default" => data}, opts)
-  end
-  
   @doc """
-  Finds all tokens in the template
-  
-  ## Examples
-  
-      iex> Jennie.scan("{{name}}")
-      ["name"]
-    
-      iex> Jennie.scan("{{#family}}{{.}}{{/family}}")
-      ["family"]
+  Like `compile/2` but raises `Jennie.SyntaxError` on failure.
   """
-  def scan(source) do
-    {:ok, tokens} = Jennie.Tokeniser.tokenise(source, 1, 1, %{indentation: 0})
-    
-    Enum.filter(tokens, fn token ->
-      case token do
-        {:tag, _, _, ~c"", ["."]} -> false
-        {:tag, _, _, ~c"", _} -> true
-        {:tag, _, _, ~c"#", _} -> true
-        _ -> false
-      end
-    end)
-    |> Enum.reduce([], fn {_, _, _, _, [var]}, acc ->
-      [var | acc]
-    end)
+  @spec compile!(String.t(), keyword()) :: Template.t()
+  def compile!(source, opts \\ []) when is_binary(source) do
+    case compile(source, opts) do
+      {:ok, template} -> template
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
+  Render a template against `data`.
+
+  `source_or_template` may be a raw string or a pre-compiled `Jennie.Template`.
+  Non-map `data` (a scalar, list, or struct) is rendered as the top-level
+  implicit-iterator context, reachable via `{{.}}`.
+
+  ## Examples
+
+      iex> Jennie.render("{{.}} miles", 85)
+      "85 miles"
+
+      iex> Jennie.render("{{#.}}({{value}}){{/.}}", [%{"value" => "a"}, %{"value" => "b"}])
+      "(a)(b)"
+  """
+  @spec render(String.t() | Template.t(), term(), keyword()) :: binary()
+  def render(source_or_template, data \\ %{}, opts \\ [])
+
+  def render(%Template{ast: ast}, data, opts) do
+    Renderer.render(ast, data, opts)
+  end
+
+  def render(source, data, opts) when is_binary(source) do
+    %Template{ast: ast} = compile!(source, opts)
+    Renderer.render(ast, data, opts)
+  end
+
+  @doc """
+  List the names of every tag in `source` that references the data — variables,
+  unescaped tags, sections, and inverted sections. Comments, partials, and
+  delimiter tags are excluded, as is the implicit iterator `{{.}}`. Names are
+  deduplicated while preserving first-seen order.
+
+  ## Examples
+
+      iex> Jennie.scan("{{a}}{{#b}}{{c}}{{/b}}")
+      ["a", "b", "c"]
+  """
+  @spec scan(String.t()) :: [String.t()]
+  def scan(source) when is_binary(source) do
+    {:ok, tokens} = Tokeniser.tokenise(source)
+
+    tokens
+    |> Parser.parse()
+    |> collect_names([])
     |> Enum.reverse()
+    |> Enum.uniq()
   end
-  
+
   @doc """
-  Finds all tokens in the template
-  
+  Names referenced by `source` whose top-level key is absent from `data`.
+
   ## Examples
-  
-      iex> Jennie.missing?("{{name}}", %{})
-      ["name"]
-    
-      iex> Jennie.missing?("{{my_love_life}}", %{}) == ["my_love_life"]
-      true
+
+      iex> Jennie.missing?("{{a}}{{b}}", %{"a" => 1})
+      ["b"]
   """
-  def missing?(source, data) do
-    data = Jennie.Utils.to_map(data)
-    source_tags = scan(source)
-    Enum.filter(source_tags, fn tag ->
-      Map.get(data, tag) == nil
+  @spec missing?(String.t(), term()) :: [String.t()]
+  def missing?(source, data) when is_binary(source) do
+    normalised = Jennie.Utils.normalise(data)
+    present = if is_map(normalised), do: normalised, else: %{}
+
+    source
+    |> scan()
+    |> Enum.reject(fn name ->
+      [head | _] = String.split(name, ".")
+      Map.has_key?(present, head)
     end)
+  end
+
+  defp collect_names([], acc), do: acc
+
+  defp collect_names([{:text, _} | rest], acc), do: collect_names(rest, acc)
+
+  defp collect_names([{:var, ["."], _} | rest], acc), do: collect_names(rest, acc)
+
+  defp collect_names([{:var, keys, _} | rest], acc) do
+    collect_names(rest, [Enum.join(keys, ".") | acc])
+  end
+
+  defp collect_names([{:partial, _name, _indent} | rest], acc), do: collect_names(rest, acc)
+
+  defp collect_names([{type, keys, children} | rest], acc) when type in [:section, :inverted] do
+    acc = [Enum.join(keys, ".") | acc]
+    acc = collect_names(children, acc)
+    collect_names(rest, acc)
   end
 end
