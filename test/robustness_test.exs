@@ -1,9 +1,4 @@
 defmodule Jennie.LambdaTest do
-  @moduledoc """
-  Lambda behaviour, mirroring the optional mustache `~lambdas` spec module.
-  The spec encodes lambdas as source for other languages, so we
-  reproduce each case with the equivalent Elixir function.
-  """
   use ExUnit.Case, async: true
 
   test "Interpolation" do

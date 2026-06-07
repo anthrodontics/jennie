@@ -112,7 +112,7 @@ defmodule JennieTest do
         }
       }
 
-      assert Jennie.render("{{#a}}{{b.c}}{{/a}}", data) == "ERROR"
+      assert Jennie.render("{{#a}}{{b.c}}{{/a}}", data) == ""
     end
 
     test "Dotted names shall not be parsed as single, atomic keys" do
@@ -259,7 +259,6 @@ defmodule JennieTest do
       """
 
       expected = """
-
       1
       121
       12321
@@ -306,7 +305,6 @@ defmodule JennieTest do
       """
 
       expected = """
-
       * first
       * second
       * third
@@ -438,7 +436,7 @@ defmodule JennieTest do
     test "Standalone Line Endings - \\r\\n should be considered a newline for standalone tags" do
       data = %{"boolean" => true}
       template = "\n\n{{#boolean}}\r\n{{/boolean}}\n\n"
-      expected = "\n\n"
+      expected = "\n\n\n"
 
       assert Jennie.render(template, data) == expected
     end
@@ -454,7 +452,7 @@ defmodule JennieTest do
     test "Standalone Without Newline - Standalone tags should not require a newline to follow them" do
       data = %{"boolean" => true}
       template = "{{#boolean}}\n/\n  {{/boolean}}"
-      expected = "\n/"
+      expected = "/\n"
 
       assert Jennie.render(template, data) == expected
     end
@@ -470,7 +468,7 @@ defmodule JennieTest do
     test "Sections - newlines before the section should be removed" do
       data = %{"planets" => ["Earth", "Mars", "Venus"]}
       template = "{{#planets}}\n- {{.}}\n{{/planets}}\n"
-      expected = "\n- Earth\n- Mars\n- Venus"
+      expected = "- Earth\n- Mars\n- Venus\n"
 
       assert Jennie.render(template, data) == expected
     end

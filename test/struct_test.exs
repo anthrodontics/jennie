@@ -14,13 +14,6 @@ defmodule Jennie.StructTest.Box do
 end
 
 defmodule Jennie.StructTest do
-  @moduledoc """
-  Elixir structs must be usable anywhere a map is: as the top-level
-  context, nested inside maps/structs, reached via dotted names, pushed by
-  sections, and iterated in lists. `Jennie.Utils.normalize/1` strips the
-  `__struct__` field and stringifies the atom keys lazily as each frame is
-  visited.
-  """
   use ExUnit.Case, async: true
 
   alias Jennie.StructTest.{Address, Box, User}
